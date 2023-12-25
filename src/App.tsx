@@ -47,8 +47,6 @@ const Example = memo((props: ExampleProps) => {
     // 20: { enable: false, height: 100 },
   });
 
-  console.log(expandable);
-
   const columns = useMemo<Column[]>(() => {
     return [
       {
