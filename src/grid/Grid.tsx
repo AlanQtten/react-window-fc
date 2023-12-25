@@ -4,7 +4,6 @@ import React, {
   useMemo,
   useRef,
   useState,
-  ComponentType,
   createElement,
   CSSProperties,
   forwardRef,
@@ -25,28 +24,18 @@ import { useForceUpdate } from './hooks/useForceUpdate';
 type Direction = 'ltr' | 'rtl';
 export type ScrollToAlign = 'auto' | 'smart' | 'center' | 'start' | 'end';
 
-export type RenderComponentProps = {
+export type RenderCellProps = {
   columnIndex: number;
   data: any;
   isScrolling?: boolean;
   rowIndex: number;
   style: CSSProperties;
+  key: React.Key;
 };
 
-export type RenderComponent = ComponentType<RenderComponentProps>;
+export type RenderCell = (p: RenderCellProps) => React.ReactNode;
 
 type ScrollDirection = 'forward' | 'backward';
-
-type OnItemsRenderedCallback = (p: {
-  overscanColumnStartIndex: number;
-  overscanColumnStopIndex: number;
-  overscanRowStartIndex: number;
-  overscanRowStopIndex: number;
-  visibleColumnStartIndex: number;
-  visibleColumnStopIndex: number;
-  visibleRowStartIndex: number;
-  visibleRowStopIndex: number;
-}) => void;
 
 type OnScrollCallback = (p: {
   horizontalScrollDirection: ScrollDirection;
@@ -60,7 +49,7 @@ type ScrollEvent = SyntheticEvent<HTMLDivElement>;
 
 export type GridProps = {
   // required
-  children: RenderComponent;
+  children: RenderCell;
   columnCount: number;
   columnWidth: ItemSize;
   rowCount: number;
@@ -78,7 +67,6 @@ export type GridProps = {
   initialScrollLeft?: number;
   initialScrollTop?: number;
   innerRef?: any;
-  onItemsRendered?: OnItemsRenderedCallback; // TODO: maybe could replace by render props
   onScroll?: OnScrollCallback;
   outerRef?: any;
   overscanColumnCount?: number;
@@ -553,7 +541,6 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
     yieldAtTop,
   ]);
 
-  // TODO: 从items中或者从cache中取值计算
   // 累加[start, end]的行高
   const sumRowsHeights = useCallback(
     (end: number, start = 0) => {
@@ -771,7 +758,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
   const [rowStartIndex, rowStopIndex] = _getVerticalRangeToRender();
 
   // const _callPropsCallbacks = () => {
-  //   // TODO: call onItemsRendered、 onScroll
+  //   // TODO: call onScroll
   // }
 
   const _onScroll = useCallback(
@@ -789,8 +776,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
       // setScrollUpdateWasRequested(false) // TODO: scrollUpdateWasRequested
       setScrollLeft((prevScrollLeft) => {
         if (prevScrollLeft === latestScrollLeft) {
-          // TODO: 是否有必要？
-          // 避免componentDidMount/Update中对scrollPosition修改造成冗余的render
+          // 避免造成冗余的render
           return prevScrollLeft;
         }
 
@@ -822,8 +808,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
 
       setScrollTop((prevScrollTop) => {
         if (prevScrollTop === latestScrollTop) {
-          // TODO: 是否有必要？
-          // 避免componentDidMount/Update中对scrollPosition修改造成冗余的render
+          // 避免造成冗余的render
           return prevScrollTop;
         }
 
@@ -861,7 +846,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
         columnIndex++
       ) {
         items.push(
-          createElement(children, {
+          children({
             columnIndex,
             data: itemData,
             isScrolling: useIsScrolling ? isScrolling : undefined,
@@ -914,7 +899,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
   for (let i = 0; i < fixedLeftCount; i++) {
     const currentColumnWidth = columnWidth(i);
     items.push(
-      createElement(children, {
+      children({
         key: `0:${i}`,
         rowIndex: 0,
         columnIndex: i,
@@ -941,7 +926,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
     for (let i = indexOfFirstRightFixedCol; i < columnCount; i++) {
       const currentColumnWidth = columnWidth(i);
       items.push(
-        createElement(children, {
+        children({
           key: `0:${i}`,
           rowIndex: 0,
           columnIndex: i,
@@ -970,7 +955,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
         : undefined;
 
     items.push(
-      createElement(children, {
+      children({
         key: `${0}:${i}`,
         rowIndex: 0,
         columnIndex: i,
@@ -1095,7 +1080,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
           : undefined;
 
       items.push(
-        createElement(children, {
+        children({
           key: `${i}:${columnIndex}`,
           rowIndex: i,
           columnIndex,
@@ -1171,7 +1156,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
           : undefined;
 
       items.push(
-        createElement(children, {
+        children({
           key: `${i}:${j}`,
           rowIndex: i,
           columnIndex: j,
@@ -1253,13 +1238,12 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
     sumRightFixedWidth -= currentColumnWidth;
   }
 
-  return createElement(
-    'div',
-    {
-      className,
-      onScroll: _onScroll,
-      ref: outerRef,
-      style: {
+  return (
+    <div
+      className={className}
+      onScroll={_onScroll}
+      ref={outerRef}
+      style={{
         position: 'relative',
         height,
         width,
@@ -1268,22 +1252,21 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
         willChange: 'transform',
         direction,
         ...style,
-      },
-    },
-    createElement(
-      'div',
-      {
-        ref: innerRef,
-        className: innerWrapperClassName,
-        style: {
+      }}
+    >
+      <div
+        ref={innerRef}
+        className={innerWrapperClassName}
+        style={{
           height: estimatedTotalHeight,
           pointerEvents: isScrolling ? 'none' : undefined,
           // pointerEvents: 'none',
           width: estimatedTotalWidth,
-        },
-      },
-      items
-    )
+        }}
+      >
+        {items}
+      </div>
+    </div>
   );
 };
 

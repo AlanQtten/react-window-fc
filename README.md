@@ -1,30 +1,21 @@
-# React + TypeScript + Vite
+# Why
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+let react-window support sticky rows
 
-Currently, two official plugins are available:
+# Difference with react-window
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- refactor react-window 
+  - refactor as function component
+  - remove deprecated api
+  - replace createElement with render props and remove `onItemsRendered`
+  - remove FixedSizeGrid、FixedSizeList and VariableSizeList
+  - add `fixedTopCount`、`fixedLeftCount`、`fixedRightCount` and `expandable`
+- add `table` component
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type aware lint rules:
-
-- Configure the top-level `parserOptions` property like this:
-
-```js
-export default {
-  // other rules...
-  parserOptions: {
-    ecmaVersion: 'latest',
-    sourceType: 'module',
-    project: ['./tsconfig.json', './tsconfig.node.json'],
-    tsconfigRootDir: __dirname,
-  },
-}
-```
-
-- Replace `plugin:@typescript-eslint/recommended` to `plugin:@typescript-eslint/recommended-type-checked` or `plugin:@typescript-eslint/strict-type-checked`
-- Optionally add `plugin:@typescript-eslint/stylistic-type-checked`
-- Install [eslint-plugin-react](https://github.com/jsx-eslint/eslint-plugin-react) and add `plugin:react/recommended` & `plugin:react/jsx-runtime` to the `extends` list
+# TODO
+- [ ] remove `itemHeight` from props
+- [ ] support `isScrolling` and `scrollUpdateWasRequested`
+- [ ] support `initialScrollLeft` and `initialScrollTop`
+- [ ] support `onScroll`
+- [ ] move `scrollTo` out range control to internal grid
+- [ ] unit test and perf test

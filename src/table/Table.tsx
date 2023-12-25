@@ -1,5 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import React, {
+  CSSProperties,
   ForwardRefRenderFunction,
   forwardRef,
   memo,
@@ -93,44 +94,46 @@ export interface TableProps
   ) => React.ReactNode;
 }
 
-const Cell: AutoSizeGridProps['children'] = memo(
-  ({ columnIndex, rowIndex, style, data }) => {
-    const column = data.columns[columnIndex];
-    const isHead = rowIndex === 0;
-    const isOdd = rowIndex % 2 === 0;
+const Cell = memo<{
+  columnIndex: number;
+  rowIndex: number;
+  style: CSSProperties;
+  data: any;
+}>(({ columnIndex, rowIndex, style, data }) => {
+  const column = data.columns[columnIndex];
+  const isHead = rowIndex === 0;
+  const isOdd = rowIndex % 2 === 0;
 
-    return (
-      <div
-        className={cx([
-          data.classes.cell,
-          isHead
-            ? [data.classes.headCell, column.headerClassName]
-            : [column.className, isOdd && data.classes.oddRow],
-          column[internalClassNameSymbol],
-        ])}
-        style={style}
-        key={`${rowIndex}-${columnIndex}-cell`}
-      >
-        {isHead
-          ? column.headerRenderer
-            ? column.headerRenderer({
-                column,
-                rowSelection: data.rowSelection,
-                tableData: data.tableData,
-              })
-            : column.title
-          : column.cellRenderer({
+  return (
+    <div
+      className={cx([
+        data.classes.cell,
+        isHead
+          ? [data.classes.headCell, column.headerClassName]
+          : [column.className, isOdd && data.classes.oddRow],
+        column[internalClassNameSymbol],
+      ])}
+      style={style}
+      // key={`${rowIndex}-${columnIndex}-cell`}
+    >
+      {isHead
+        ? column.headerRenderer
+          ? column.headerRenderer({
               column,
-              rowData: data.tableData[rowIndex - 1],
               rowSelection: data.rowSelection,
-              rowIndex,
-              columnIndex,
-            })}
-      </div>
-    );
-  },
-  areEqual
-);
+              tableData: data.tableData,
+            })
+          : column.title
+        : column.cellRenderer({
+            column,
+            rowData: data.tableData[rowIndex - 1],
+            rowSelection: data.rowSelection,
+            rowIndex,
+            columnIndex,
+          })}
+    </div>
+  );
+}, areEqual);
 
 const useStyles = createUseStyles({
   wrapper: {
@@ -502,6 +505,15 @@ const InnerTable: ForwardRefRenderFunction<TableRef, TableProps> = (
     []
   );
 
+  const itemData = useMemo(() => {
+    return {
+      columns,
+      classes,
+      tableData: data,
+      rowSelection,
+    };
+  }, [columns, classes, data, rowSelection]);
+
   if (!ready) {
     return null;
   }
@@ -520,12 +532,12 @@ const InnerTable: ForwardRefRenderFunction<TableRef, TableProps> = (
       expandRenderer={expandRenderer}
       columnWidth={columnWidthGetter}
       ref={grid}
-      itemData={{
-        columns,
-        classes,
-        tableData: data,
-        rowSelection,
-      }}
+      // itemData={{
+      //   columns,
+      //   classes,
+      //   tableData: data,
+      //   rowSelection,
+      // }}
       overscanColumnCount={overscanColumnCount}
       overscanRowCount={overscanRowCount}
       estimatedTotalWidth={estimatedTotalWidth}
@@ -534,7 +546,17 @@ const InnerTable: ForwardRefRenderFunction<TableRef, TableProps> = (
       fixedRightCount={fixedRightCount}
       fixedTopCount={1}
     >
-      {Cell}
+      {({ style, key, rowIndex, columnIndex }) => {
+        return (
+          <Cell
+            key={key}
+            style={style}
+            rowIndex={rowIndex}
+            columnIndex={columnIndex}
+            data={itemData}
+          />
+        );
+      }}
     </AutoSizeGrid>
   );
 };
