@@ -37,17 +37,6 @@ export type RenderCell = (p: RenderCellProps) => React.ReactNode;
 
 type ScrollDirection = 'forward' | 'backward';
 
-type OnItemsRenderedCallback = (p: {
-  overscanColumnStartIndex: number;
-  overscanColumnStopIndex: number;
-  overscanRowStartIndex: number;
-  overscanRowStopIndex: number;
-  visibleColumnStartIndex: number;
-  visibleColumnStopIndex: number;
-  visibleRowStartIndex: number;
-  visibleRowStopIndex: number;
-}) => void;
-
 type OnScrollCallback = (p: {
   horizontalScrollDirection: ScrollDirection;
   scrollLeft: number;
@@ -78,7 +67,6 @@ export type GridProps = {
   initialScrollLeft?: number;
   initialScrollTop?: number;
   innerRef?: any;
-  onItemsRendered?: OnItemsRenderedCallback; // TODO: maybe could replace by render props
   onScroll?: OnScrollCallback;
   outerRef?: any;
   overscanColumnCount?: number;
@@ -553,7 +541,6 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
     yieldAtTop,
   ]);
 
-  // TODO: 从items中或者从cache中取值计算
   // 累加[start, end]的行高
   const sumRowsHeights = useCallback(
     (end: number, start = 0) => {
@@ -771,7 +758,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
   const [rowStartIndex, rowStopIndex] = _getVerticalRangeToRender();
 
   // const _callPropsCallbacks = () => {
-  //   // TODO: call onItemsRendered、 onScroll
+  //   // TODO: call onScroll
   // }
 
   const _onScroll = useCallback(
@@ -789,8 +776,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
       // setScrollUpdateWasRequested(false) // TODO: scrollUpdateWasRequested
       setScrollLeft((prevScrollLeft) => {
         if (prevScrollLeft === latestScrollLeft) {
-          // TODO: 是否有必要？
-          // 避免componentDidMount/Update中对scrollPosition修改造成冗余的render
+          // 避免造成冗余的render
           return prevScrollLeft;
         }
 
@@ -822,8 +808,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
 
       setScrollTop((prevScrollTop) => {
         if (prevScrollTop === latestScrollTop) {
-          // TODO: 是否有必要？
-          // 避免componentDidMount/Update中对scrollPosition修改造成冗余的render
+          // 避免造成冗余的render
           return prevScrollTop;
         }
 
