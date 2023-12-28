@@ -40,6 +40,11 @@ const Example = memo((props: ExampleProps) => {
     onRender(bd);
   };
 
+  const [rowSelection, setRowSelection] = useState({
+    selectedRowKeys: [],
+    selectedRows: [],
+  });
+
   const [expandable, setExpandable] = useState<Expandable>({
     10: { enable: true, height: 100, expandStrategy: 'COVER' },
     // 11: { enable: true, height: 120 },
@@ -205,24 +210,21 @@ const Example = memo((props: ExampleProps) => {
       <div className={classes.tableWrapper}>
         <Profiler onRender={onTableRender} id="table">
           <Table
-            rowKey="id"
+            rowKey="key"
             columns={columns}
-            // rowSelection={{
-            //   selectedRowKeys: rowSelection.selectedRowKeys,
-            //   selectedRows: rowSelection.selectedRows,
-            //   onChange: ({
-            //     selectedRowKeys,
-            //     selectedRows,
-            //   }) => {
-            //     setRowSelection({
-            //       selectedRowKeys,
-            //       selectedRows,
-            //     })
-            //   },
-            //   getCheckboxProps() {
-            //     return { disabled: false }
-            //   }
-            // }}
+            rowSelection={{
+              selectedRowKeys: rowSelection.selectedRowKeys,
+              selectedRows: rowSelection.selectedRows,
+              onChange: ({ selectedRowKeys, selectedRows }) => {
+                setRowSelection({
+                  selectedRowKeys,
+                  selectedRows,
+                });
+              },
+              getCheckboxProps() {
+                return { disabled: false };
+              },
+            }}
             data={data}
             rowHeight={50}
             headHeight={100}
