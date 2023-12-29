@@ -114,6 +114,9 @@ const InnerAutoSizeGrid: ForwardRefRenderFunction<Grid, AutoSizeGridProps> = (
       resetAfterRowIndex(param) {
         wrapRef.current?.resetAfterRowIndex(param);
       },
+      forceUpdate() {
+        wrapRef.current?.forceUpdate();
+      },
     }),
     [
       props.itemData?.estimatedTotalHeight,

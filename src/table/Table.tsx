@@ -2,6 +2,7 @@
 import React, {
   CSSProperties,
   ForwardRefRenderFunction,
+  HTMLAttributes,
   forwardRef,
   memo,
   useEffect,
@@ -21,8 +22,10 @@ import {
   Expandable,
   Grid,
   PlaceholderRenderer,
+  RenderCellProps,
   areEqual,
 } from '../grid';
+import { useForceUpdate } from '../grid/hooks/useForceUpdate';
 
 const internalClassNameSymbol = '__cellClassName__';
 
@@ -37,13 +40,18 @@ type HeaderRenderProps = {
   tableData: RowData[];
 };
 
+type RowProps = {
+  selected: boolean;
+  hovered: boolean;
+};
+
 type CellRenderProps = {
   column: Column;
   rowData: RowData;
   rowSelection: RowSelection;
   rowIndex: number;
   columnIndex: number;
-};
+} & RowProps;
 
 type RowSelection = {
   selectedRowKeys: React.Key[];
@@ -94,46 +102,50 @@ export interface TableProps
   ) => React.ReactNode;
 }
 
-const Cell = memo<{
-  columnIndex: number;
-  rowIndex: number;
-  style: CSSProperties;
-  data: any;
-}>(({ columnIndex, rowIndex, style, data }) => {
-  const column = data.columns[columnIndex];
-  const isHead = rowIndex === 0;
-  const isOdd = rowIndex % 2 === 0;
+const Cell = memo<RenderCellProps & RowProps>(
+  ({ columnIndex, rowIndex, style, data, selected, hovered }) => {
+    const column = data.columns[columnIndex];
+    const isHead = rowIndex === 0;
+    const isOdd = rowIndex % 2 === 0;
 
-  return (
-    <div
-      className={cx([
-        data.classes.cell,
-        isHead
-          ? [data.classes.headCell, column.headerClassName]
-          : [column.className, isOdd && data.classes.oddRow],
-        column[internalClassNameSymbol],
-      ])}
-      style={style}
-      // key={`${rowIndex}-${columnIndex}-cell`}
-    >
-      {isHead
-        ? column.headerRenderer
-          ? column.headerRenderer({
+    return (
+      <div
+        className={cx([
+          data.classes.cell,
+          isHead
+            ? [data.classes.headCell, column.headerClassName]
+            : [column.className, isOdd && data.classes.oddRow],
+          column[internalClassNameSymbol],
+          {
+            [data.classes.selected]: selected,
+            [data.classes.hovered]: hovered,
+          },
+        ])}
+        style={style}
+        aria-rowindex={rowIndex}
+        // key={`${rowIndex}-${columnIndex}-cell`}
+      >
+        {isHead
+          ? column.headerRenderer
+            ? column.headerRenderer({
+                column,
+                rowSelection: data.rowSelection,
+                tableData: data.tableData,
+              })
+            : column.title
+          : column.cellRenderer({
               column,
+              rowData: data.tableData[rowIndex - 1],
               rowSelection: data.rowSelection,
-              tableData: data.tableData,
-            })
-          : column.title
-        : column.cellRenderer({
-            column,
-            rowData: data.tableData[rowIndex - 1],
-            rowSelection: data.rowSelection,
-            rowIndex,
-            columnIndex,
-          })}
-    </div>
-  );
-}, areEqual);
+              rowIndex,
+              columnIndex,
+              selected,
+            })}
+      </div>
+    );
+  },
+  areEqual
+);
 
 const useStyles = createUseStyles({
   wrapper: {
@@ -201,6 +213,12 @@ const useStyles = createUseStyles({
   oddRow: {
     background: '#f3f6f9',
   },
+  selected: {
+    background: 'red',
+  },
+  hovered: {
+    background: 'blue',
+  },
 });
 
 type TableFunc = {
@@ -212,6 +230,8 @@ export interface TableRef extends Grid, TableFunc {}
 const defaultExpandRenderer: TableProps['expandRenderer'] = (p) => {
   return <div key={p.key} style={p.style} />;
 };
+
+const __obj__ = {};
 
 const InnerTable: ForwardRefRenderFunction<TableRef, TableProps> = (
   props,
@@ -276,12 +296,10 @@ const InnerTable: ForwardRefRenderFunction<TableRef, TableProps> = (
           />
         );
       },
-      cellRenderer({ rowData, rowSelection: latestRowSelection }) {
+      cellRenderer({ rowData, rowSelection: latestRowSelection, selected }) {
         return (
           <Checkbox
-            checked={latestRowSelection.selectedRowKeys.includes(
-              rowData[rowKey]
-            )}
+            checked={selected}
             onChange={(e) => {
               if (e.target.checked) {
                 latestRowSelection.onChange({
@@ -501,9 +519,42 @@ const InnerTable: ForwardRefRenderFunction<TableRef, TableProps> = (
       resetAfterIndices(...param) {
         grid.current?.resetAfterIndices(...param);
       },
+      forceUpdate() {
+        grid.current?.forceUpdate();
+      },
     }),
     []
   );
+
+  const rowDataCache = useRef({});
+  const hoveredIndex = useRef(-1);
+  const forceUpdate = useForceUpdate();
+
+  const heavyWorkByRow = (rowIndex: number) => {
+    if (rowIndex === 0) {
+      return __obj__;
+    }
+    return {
+      selected: rowSelection.selectedRowKeys.includes(
+        data[rowIndex - 1][rowKey]
+      ),
+    };
+  };
+
+  const getRowDataCache = (rowIndex: number) => {
+    if (rowDataCache.current[rowIndex]) {
+      return rowDataCache.current[rowIndex];
+    }
+    // console.log(rowSelection.selectedRowKeys);
+    // eslint-disable-next-line no-return-assign
+    return (rowDataCache.current[rowIndex] = heavyWorkByRow(rowIndex));
+  };
+
+  useEffect(() => {
+    // clear cache
+    rowDataCache.current = {};
+    grid.current?.forceUpdate();
+  }, [rowSelection]);
 
   const itemData = useMemo(() => {
     return {
@@ -513,6 +564,23 @@ const InnerTable: ForwardRefRenderFunction<TableRef, TableProps> = (
       rowSelection,
     };
   }, [columns, classes, data, rowSelection]);
+
+  const onMouseMove: HTMLAttributes<HTMLDivElement>['onMouseMove'] = (e) => {
+    const row = +(e.target as HTMLDivElement).ariaRowIndex;
+    if (row && row !== hoveredIndex.current) {
+      hoveredIndex.current = row;
+      forceUpdate();
+    }
+  };
+
+  const onMouseLeave = () => {
+    hoveredIndex.current = -1;
+    forceUpdate();
+  };
+
+  useEffect(() => {
+    grid.current?.forceUpdate();
+  }, [hoveredIndex.current]);
 
   if (!ready) {
     return null;
@@ -545,8 +613,12 @@ const InnerTable: ForwardRefRenderFunction<TableRef, TableProps> = (
       fixedLeftCount={fixedLeftCount}
       fixedRightCount={fixedRightCount}
       fixedTopCount={1}
+      onMouseMove={onMouseMove}
+      onMouseLeave={onMouseLeave}
     >
       {({ style, key, rowIndex, columnIndex }) => {
+        const rowData = getRowDataCache(rowIndex);
+
         return (
           <Cell
             key={key}
@@ -554,6 +626,8 @@ const InnerTable: ForwardRefRenderFunction<TableRef, TableProps> = (
             rowIndex={rowIndex}
             columnIndex={columnIndex}
             data={itemData}
+            selected={rowData.selected}
+            hovered={hoveredIndex.current === rowIndex}
           />
         );
       }}

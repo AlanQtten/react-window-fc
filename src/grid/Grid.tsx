@@ -12,6 +12,7 @@ import React, {
   useImperativeHandle,
   Ref,
   ForwardRefRenderFunction,
+  DOMAttributes,
 } from 'react';
 
 import { getRTLOffsetType, getScrollbarSize } from './domHelpers';
@@ -47,7 +48,8 @@ type OnScrollCallback = (p: {
 
 type ScrollEvent = SyntheticEvent<HTMLDivElement>;
 
-export type GridProps = {
+export interface GridProps
+  extends Pick<DOMAttributes<HTMLDivElement>, 'onMouseLeave' | 'onMouseMove'> {
   // required
   children: RenderCell;
   columnCount: number;
@@ -80,7 +82,7 @@ export type GridProps = {
   expandable?: Expandable;
   expandRenderer?: ExpandRenderer;
   itemHeight?: ItemSize; // TODO: move it to internal
-};
+}
 
 export type Grid = {
   scrollTo: (p: { scrollLeft?: number; scrollTop?: number }) => void;
@@ -99,6 +101,7 @@ export type Grid = {
     columnIndex?: number,
     shouldForceUpdate?: boolean
   ) => void;
+  forceUpdate: () => void;
 };
 
 // 管理grid内各个区域的层级
@@ -337,6 +340,8 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
     expandable: customizeExpandable,
     expandRenderer,
     itemHeight: customizeItemHeight,
+    onMouseLeave,
+    onMouseMove,
   } = props;
 
   const [isScrolling, setIsScrolling] = useState(false);
@@ -737,6 +742,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
         resetAfterColumnIndex(columnIndex, shouldForceUpdate = true) {
           resetAfterIndices({ columnIndex, shouldForceUpdate });
         },
+        forceUpdate,
       }) as Grid,
     [
       scrollTo,
@@ -751,6 +757,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
       estimatedTotalWidth,
       width,
       height,
+      forceUpdate,
     ]
   );
 
@@ -1253,6 +1260,8 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
         direction,
         ...style,
       }}
+      onMouseLeave={onMouseLeave}
+      onMouseMove={onMouseMove}
     >
       <div
         ref={innerRef}
