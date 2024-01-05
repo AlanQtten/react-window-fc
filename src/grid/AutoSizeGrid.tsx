@@ -11,45 +11,6 @@ import cx from 'classnames';
 import { Grid, GridProps } from './Grid';
 
 import AutoSizer from '../auto-sizer';
-import { ExpandAt } from './constants';
-
-export interface PlaceholderRenderer {
-  (p: {
-    rowIndex: number;
-    style: React.CSSProperties;
-    key: React.Key;
-  }): React.ReactNode;
-}
-
-export const EXPAND_STRATEGY_COVER = 'COVER';
-export const EXPAND_STRATEGY_DEFAULT = 'DEFAULT';
-
-export type Expandable = Record<
-  string /* rowIndex */,
-  {
-    enable: boolean;
-    height: number;
-    expandStrategy?:
-      | typeof EXPAND_STRATEGY_COVER
-      | typeof EXPAND_STRATEGY_DEFAULT;
-  }
->;
-
-export type ExpandRenderer = (
-  p: {
-    rowIndex: number;
-    style: React.CSSProperties;
-    key: React.Key;
-  } & (
-    | {
-        expandAt: ExpandAt.LEFT | ExpandAt.RIGHT | ExpandAt.COVER;
-      }
-    | {
-        expandAt: ExpandAt.CELL;
-        columnIndex: number;
-      }
-  )
-) => React.ReactNode;
 
 export interface AutoSizeGridProps extends Omit<GridProps, 'width' | 'height'> {
   width?: GridProps['width'];
