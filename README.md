@@ -16,6 +16,4 @@ let react-window support sticky rows
 - [ ] remove `itemHeight` from props
 - [ ] support `isScrolling` and `scrollUpdateWasRequested`
 - [ ] support `initialScrollLeft` and `initialScrollTop`
-- [ ] support `onScroll`
-- [ ] move `scrollTo` out range control to internal grid
 - [ ] unit test and perf test
