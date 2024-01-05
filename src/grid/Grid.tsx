@@ -328,6 +328,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
     useIsScrolling = false,
     rowHeight,
     columnWidth,
+    onScroll,
 
     fixedTopCount = 0,
     fixedLeftCount = 0,
@@ -760,6 +761,21 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
   // const _callPropsCallbacks = () => {
   //   // TODO: call onScroll
   // }
+
+  useEffect(() => {
+    onScroll?.({
+      scrollLeft,
+      scrollTop,
+      verticalScrollDirection,
+      horizontalScrollDirection,
+      scrollUpdateWasRequested: false,
+    });
+  }, [
+    scrollLeft,
+    scrollTop,
+    verticalScrollDirection,
+    horizontalScrollDirection,
+  ]);
 
   const _onScroll = useCallback(
     (event: ScrollEvent) => {
