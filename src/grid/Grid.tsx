@@ -573,7 +573,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
           toScrollLeft = prevScrollLeft;
         }
 
-        if (toScrollLeft === prevScrollLeft) {
+        if (toScrollLeft === prevScrollLeft || estimatedTotalWidth <= width) {
           return prevScrollLeft;
         }
 
@@ -587,7 +587,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
           toScrollTop = prevScrollTop;
         }
 
-        if (toScrollTop === prevScrollTop) {
+        if (toScrollTop === prevScrollTop || estimatedTotalHeight <= height) {
           return prevScrollTop;
         }
 
@@ -597,7 +597,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
         return toScrollTop;
       });
     },
-    []
+    [estimatedTotalWidth, width, estimatedTotalHeight, height]
   );
 
   const itemStyleCache = useInitialRef<Record<string, CSSProperties>>(getAnObj);
