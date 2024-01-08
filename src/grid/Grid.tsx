@@ -1,3 +1,5 @@
+/* eslint-disable no-nested-ternary */
+/* eslint-disable no-multi-assign */
 import React, {
   useCallback,
   useEffect,
@@ -12,6 +14,7 @@ import React, {
   useImperativeHandle,
   Ref,
   ForwardRefRenderFunction,
+  ReactElement,
 } from 'react';
 
 import { getRTLOffsetType, getScrollbarSize } from './domHelpers';
@@ -66,9 +69,7 @@ export type GridProps = {
   innerWrapperClassName?: string;
   initialScrollLeft?: number;
   initialScrollTop?: number;
-  innerRef?: any;
   onScroll?: OnScrollCallback;
-  outerRef?: any;
   overscanColumnCount?: number;
   overscanRowCount?: number;
   style?: CSSProperties;
@@ -79,7 +80,7 @@ export type GridProps = {
   placeholderRenderer?: PlaceholderRenderer;
   expandable?: Expandable;
   expandRenderer?: ExpandRenderer;
-  itemHeight?: ItemSize; // TODO: move it to internal
+  itemHeight?: ItemSize;
 };
 
 export type Grid = {
@@ -356,7 +357,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
 
   const forceUpdate = useForceUpdate();
 
-  const outerRef = useRef(null);
+  const outerRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef(null);
   const instanceProps = useInitialRef<InstanceProps>(initInstanceProps);
 
@@ -374,23 +375,23 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
   const itemHeight = customizeItemHeight ?? rowHeight;
 
   const [yieldAtTop, yieldAtLeft, yieldAtRight] = useMemo(() => {
-    let _yieldAtTop = 0;
-    let _yieldAtLeft = 0;
-    let _yieldAtRight = 0;
+    let memoYieldAtTop = 0;
+    let memoYieldAtLeft = 0;
+    let memoYieldAtRight = 0;
 
     for (let i = 0; i < fixedTopCount; i++) {
-      _yieldAtTop += rowHeight(i);
+      memoYieldAtTop += rowHeight(i);
     }
 
     for (let i = 0; i < fixedLeftCount; i++) {
-      _yieldAtLeft += columnWidth(i);
+      memoYieldAtLeft += columnWidth(i);
     }
 
     for (let i = indexOfFirstRightFixedCol; i < columnCount; i++) {
-      _yieldAtRight += columnWidth(i);
+      memoYieldAtRight += columnWidth(i);
     }
 
-    return [_yieldAtTop, _yieldAtLeft, _yieldAtRight];
+    return [memoYieldAtTop, memoYieldAtLeft, memoYieldAtRight];
   }, [
     fixedTopCount,
     fixedLeftCount,
@@ -426,7 +427,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
   );
 
   // 获取列开始~结束
-  const _getHorizontalRangeToRender = useCallback((): [number, number] => {
+  const getHorizontalRangeToRender = useCallback((): [number, number] => {
     const overscanCountResolved = overscanColumnCount || 1;
 
     if (columnCount === 0 || rowCount === 0) {
@@ -502,7 +503,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
   );
 
   // 获取行开始~结束
-  const _getVerticalRangeToRender = useCallback((): [number, number] => {
+  const getVerticalRangeToRender = useCallback((): [number, number] => {
     const overscanCountResolved = overscanRowCount || 1;
 
     if (columnCount === 0 || rowCount === 0) {
@@ -568,47 +569,29 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
         toScrollTop = Math.max(0, toScrollTop);
       }
 
-      setScrollLeft((prevScrollLeft) => {
-        if (toScrollLeft === undefined) {
-          toScrollLeft = prevScrollLeft;
-        }
+      const scrollOptions: ScrollToOptions = { behavior: 'instant' };
+      if (toScrollLeft && estimatedTotalWidth > width) {
+        scrollOptions.left = toScrollLeft;
+      }
 
-        if (toScrollLeft === prevScrollLeft || estimatedTotalWidth <= width) {
-          return prevScrollLeft;
-        }
+      if (toScrollTop && estimatedTotalHeight > height) {
+        scrollOptions.top = toScrollTop;
+      }
 
-        setHorizontalScrollDirection(
-          prevScrollLeft < toScrollLeft ? 'forward' : 'backward'
-        );
-        return toScrollLeft;
-      });
-      setScrollTop((prevScrollTop) => {
-        if (toScrollTop === undefined) {
-          toScrollTop = prevScrollTop;
-        }
-
-        if (toScrollTop === prevScrollTop || estimatedTotalHeight <= height) {
-          return prevScrollTop;
-        }
-
-        setVerticalScrollDirection(
-          prevScrollTop < toScrollTop ? 'forward' : 'backward'
-        );
-        return toScrollTop;
-      });
+      outerRef.current!.scrollTo(scrollOptions);
     },
     [estimatedTotalWidth, width, estimatedTotalHeight, height]
   );
 
   const itemStyleCache = useInitialRef<Record<string, CSSProperties>>(getAnObj);
 
-  const _getItemStyle = useCallback(
+  const getItemStyle = useCallback(
     (rowIndex: number, columnIndex: number): CSSProperties => {
       const key = `${rowIndex}:${columnIndex}`;
 
-      let _style: CSSProperties;
+      let cellStyle: CSSProperties;
       if (itemStyleCache.current[key]) {
-        _style = itemStyleCache.current[key];
+        cellStyle = itemStyleCache.current[key];
       } else {
         const { offset } = getColumnMetadata(
           columnWidth,
@@ -616,7 +599,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
           instanceProps.current
         );
         const isRtl = direction === 'rtl';
-        itemStyleCache.current[key] = _style = {
+        itemStyleCache.current[key] = cellStyle = {
           position: 'absolute',
           left: isRtl ? undefined : offset,
           right: isRtl ? offset : undefined,
@@ -628,21 +611,21 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
       }
 
       if (enableExpandable) {
-        _style = {
+        cellStyle = {
           position: 'absolute',
-          left: _style.left,
-          right: _style.right,
-          top: _style.top,
+          left: cellStyle.left,
+          right: cellStyle.right,
+          top: cellStyle.top,
           height:
-            (_style.height as number) -
+            (cellStyle.height as number) -
             (expandable[rowIndex]?.enable
               ? expandable[rowIndex].height
               : 0 ?? 0),
-          width: _style.width,
+          width: cellStyle.width,
         };
       }
 
-      return _style;
+      return cellStyle;
     },
     [
       direction,
@@ -663,7 +646,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
         );
       }
 
-      if (typeof columnIndex === 'number') {
+      if (typeof rowIndex === 'number') {
         instanceProps.current.lastMeasuredRowIndex = Math.min(
           instanceProps.current.lastMeasuredRowIndex,
           rowIndex - 1
@@ -755,12 +738,8 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
     ]
   );
 
-  const [columnStartIndex, columnStopIndex] = _getHorizontalRangeToRender();
-  const [rowStartIndex, rowStopIndex] = _getVerticalRangeToRender();
-
-  // const _callPropsCallbacks = () => {
-  //   // TODO: call onScroll
-  // }
+  const [columnStartIndex, columnStopIndex] = getHorizontalRangeToRender();
+  const [rowStartIndex, rowStopIndex] = getVerticalRangeToRender();
 
   useEffect(() => {
     onScroll?.({
@@ -777,7 +756,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
     horizontalScrollDirection,
   ]);
 
-  const _onScroll = useCallback(
+  const internalOnScroll = useCallback(
     (event: ScrollEvent) => {
       const {
         clientHeight,
@@ -843,13 +822,11 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
     [direction]
   );
 
-  useEffect(() => {
-    if (outerRef.current !== null) {
-      // TODO: set initialScrollLeft、initialScrollTop for outerRef
-    }
-
-    // _callPropsCallbacks()
-  }, []);
+  // useEffect(() => {
+  //   if (outerRef.current !== null) {
+  //     // TODO: set initialScrollLeft、initialScrollTop for outerRef
+  //   }
+  // }, []);
 
   // ============================== render ==============================
   // ============================== 普通单元格 ==============================
@@ -868,7 +845,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
             isScrolling: useIsScrolling ? isScrolling : undefined,
             key: `${rowIndex}:${columnIndex}`,
             rowIndex,
-            style: _getItemStyle(rowIndex, columnIndex),
+            style: getItemStyle(rowIndex, columnIndex),
           })
         );
       }
@@ -879,10 +856,14 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
           expandable[rowIndex]?.enable &&
           expandable[rowIndex].expandStrategy !== EXPAND_STRATEGY_COVER
         ) {
-          const { top, height: targetHeight } =
-            items[items.length - 1].props.style;
+          const { top, height: targetHeight } = (items[
+            items.length - 1
+          ] as ReactElement<RenderCellProps>)!.props.style as {
+            top: number;
+            height: number;
+          };
 
-          let indexOfColStart =
+          let indexOfColStart: number =
             items.length - (columnStopIndex - columnStartIndex + 1);
           for (let j = columnStartIndex; j <= columnStopIndex; j++) {
             items.push(
@@ -890,10 +871,12 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
                 key: `__expand:${rowIndex}:${j}`,
                 style: {
                   position: 'absolute',
-                  left: items[indexOfColStart].props.style.left,
+                  left: (items[
+                    indexOfColStart
+                  ] as ReactElement<RenderCellProps>)!.props.style.left,
                   top: top + targetHeight,
                   width: columnWidth(j),
-                  background: 'rgba(0, 0, 255, .1)',
+                  // background: 'rgba(0, 0, 255, .1)',
                   height: expandable[rowIndex].height,
                 },
                 expandAt: ExpandAt.CELL,
@@ -908,38 +891,13 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
     }
   }
 
-  const topFromWrapper = items[0].props.style.top;
+  if (items.length) {
+    const topFromWrapper = (items[0] as ReactElement<RenderCellProps>).props
+      .style.top as number;
 
-  // ============================== 左上冻结cell ==============================
-  let sumLeftFixedWidth = 0;
-  for (let i = 0; i < fixedLeftCount; i++) {
-    const currentColumnWidth = columnWidth(i);
-    items.push(
-      children({
-        key: `0:${i}`,
-        rowIndex: 0,
-        columnIndex: i,
-        style: {
-          display: 'inline-flex',
-          width: currentColumnWidth,
-          height: rowHeight(0),
-          position: 'sticky',
-          top: 0,
-          left: sumLeftFixedWidth,
-          zIndex: Level.leftFixedHead,
-          // background: 'red',
-        },
-        data: itemData,
-      })
-    );
-    sumLeftFixedWidth += currentColumnWidth;
-  }
-
-  // ============================== 右上冻结cell ==============================
-  if (fixedRightCount) {
-    let sumRightFixedWidth = yieldAtRight;
-
-    for (let i = indexOfFirstRightFixedCol; i < columnCount; i++) {
+    // ============================== 左上冻结cell ==============================
+    let sumLeftFixedWidth = 0;
+    for (let i = 0; i < fixedLeftCount; i++) {
       const currentColumnWidth = columnWidth(i);
       items.push(
         children({
@@ -952,312 +910,348 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
             height: rowHeight(0),
             position: 'sticky',
             top: 0,
-            left: width - sumRightFixedWidth - adjustmentForRightFixed,
-            zIndex: Level.rightFixedHead,
-            // background: 'orange',
+            left: sumLeftFixedWidth,
+            zIndex: Level.leftFixedHead,
+            // background: 'red',
           },
           data: itemData,
         })
       );
-      sumRightFixedWidth -= currentColumnWidth;
+      sumLeftFixedWidth += currentColumnWidth;
     }
-  }
 
-  // ============================== 顶部冻结cell ==============================
-  for (let i = columnStartIndex; i <= columnStopIndex; i += 1) {
-    const marginLeft =
-      i === columnStartIndex
-        ? items[0].props.style.left - yieldAtLeft - yieldAtRight
-        : undefined;
+    // ============================== 右上冻结cell ==============================
+    if (fixedRightCount) {
+      let sumRightFixedWidth = yieldAtRight;
 
-    items.push(
-      children({
-        key: `${0}:${i}`,
-        rowIndex: 0,
-        columnIndex: i,
-        style: {
-          marginLeft,
-          display: 'inline-flex',
-          width: columnWidth(i),
-          height: rowHeight(0),
-          position: 'sticky',
-          top: 0,
-          zIndex: Level.topFixedRow,
-          // background: 'green'
-        },
-        data: itemData,
-      })
-    );
-  }
-
-  // ============================== 行展开(===EXPAND_STRATEGY_COVER && 左右冻结都不存在) ==============================
-  if (enableExpandable && !fixedLeftCount && !fixedRightCount) {
-    const heightOfHead = itemHeight(0);
-
-    let sumHeight = 0;
-    let loopIndex = 0;
-
-    for (let i = rowStartIndex; i <= rowStopIndex; i++) {
-      if (
-        expandable[i]?.enable &&
-        expandable[i].expandStrategy === EXPAND_STRATEGY_COVER
-      ) {
-        const { top, height: targetHeight } = items.find(
-          (child) => child.props.rowIndex === i
-        ).props.style;
-
-        const mt =
-          loopIndex === 0
-            ? top + targetHeight - heightOfHead
-            : top + targetHeight - heightOfHead - sumHeight;
-
+      for (let i = indexOfFirstRightFixedCol; i < columnCount; i++) {
+        const currentColumnWidth = columnWidth(i);
         items.push(
-          expandRenderer({
-            key: `__expand:cover:${i}`,
+          children({
+            key: `0:${i}`,
+            rowIndex: 0,
+            columnIndex: i,
             style: {
+              display: 'inline-flex',
+              width: currentColumnWidth,
+              height: rowHeight(0),
               position: 'sticky',
-              left: 0,
-              // top: top + height,
-              width,
-              background: 'rgba(255, 0, 0, .1)',
-              height: expandable[i].height,
-              marginTop: mt,
+              top: 0,
+              left: width - sumRightFixedWidth - adjustmentForRightFixed,
+              zIndex: Level.rightFixedHead,
+              // background: 'orange',
             },
-            expandAt: ExpandAt.COVER,
-            rowIndex: i,
+            data: itemData,
           })
         );
-
-        sumHeight += mt + expandable[i].height;
-        loopIndex++;
+        sumRightFixedWidth -= currentColumnWidth;
       }
     }
-  }
 
-  // ============================== 列宽<容器宽时的占位 ==============================
-  const restOfWidth = width - estimatedTotalWidth - adjustmentWidth;
-  const generatePlaceholder = restOfWidth > 0 && placeholderRenderer;
+    // ============================== 顶部冻结cell ==============================
+    for (let i = columnStartIndex; i <= columnStopIndex; i += 1) {
+      const marginLeft: number | undefined =
+        i === columnStartIndex
+          ? ((items[0] as ReactElement<RenderCellProps>).props.style
+              .left as number) -
+            yieldAtLeft -
+            yieldAtRight
+          : undefined;
 
-  if (generatePlaceholder) {
-    items.push(
-      placeholderRenderer({
-        key: `__grid_placeholder:head__`,
-        rowIndex: 0,
-        style: {
-          display: 'inline-flex',
-          width: `calc(100% - ${estimatedTotalWidth}px)`,
-          height: rowHeight(0),
-          position: 'sticky',
-          top: 0,
-          zIndex: Level.topFixedRow,
-          // background: 'green'
-        },
-      })
-    );
+      items.push(
+        children({
+          key: `${0}:${i}`,
+          rowIndex: 0,
+          columnIndex: i,
+          style: {
+            marginLeft,
+            display: 'inline-flex',
+            width: columnWidth(i),
+            height: rowHeight(0),
+            position: 'sticky',
+            top: 0,
+            zIndex: Level.topFixedRow,
+            // background: 'green'
+          },
+          data: itemData,
+        })
+      );
+    }
 
-    let sumBefore = topFromWrapper;
-    for (let i = rowStartIndex; i <= rowStopIndex; i++) {
-      const currentRowHeight = rowHeight(i);
+    // ============================== 行展开(===EXPAND_STRATEGY_COVER && 左右冻结都不存在) ==============================
+    if (enableExpandable && !fixedLeftCount && !fixedRightCount) {
+      const heightOfHead = itemHeight(0);
+
+      let sumHeight = 0;
+      let loopIndex = 0;
+
+      for (let i = rowStartIndex; i <= rowStopIndex; i++) {
+        if (
+          expandable[i]?.enable &&
+          expandable[i].expandStrategy === EXPAND_STRATEGY_COVER
+        ) {
+          const { top, height: targetHeight } = (
+            items as ReactElement<RenderCellProps>[]
+          ).find((child) => child!.props.rowIndex === i)!.props.style as {
+            top: number;
+            height: number;
+          };
+
+          const mt =
+            loopIndex === 0
+              ? top + targetHeight - heightOfHead
+              : top + targetHeight - heightOfHead - sumHeight;
+
+          items.push(
+            expandRenderer({
+              key: `__expand:cover:${i}`,
+              style: {
+                position: 'sticky',
+                left: 0,
+                // top: top + height,
+                width,
+                // background: 'rgba(255, 0, 0, .1)',
+                height: expandable[i].height,
+                marginTop: mt,
+              },
+              expandAt: ExpandAt.COVER,
+              rowIndex: i,
+            })
+          );
+
+          sumHeight += mt + expandable[i].height;
+          loopIndex++;
+        }
+      }
+    }
+
+    // ============================== 列宽<容器宽时的占位 ==============================
+    const restOfWidth = width - estimatedTotalWidth - adjustmentWidth;
+    const generatePlaceholder = restOfWidth > 0 && placeholderRenderer;
+
+    if (generatePlaceholder) {
       items.push(
         placeholderRenderer({
-          key: `__grid_placeholder:${i}__`,
-          rowIndex: i,
+          key: `__grid_placeholder:head__`,
+          rowIndex: 0,
           style: {
-            width: '100%',
-            height: currentRowHeight,
-            position: 'absolute',
-            top: sumBefore,
-            left: 0,
-            zIndex: Level.placeholderCell,
+            display: 'inline-flex',
+            width: `calc(100% - ${estimatedTotalWidth}px)`,
+            height: rowHeight(0),
+            position: 'sticky',
+            top: 0,
+            zIndex: Level.topFixedRow,
             // background: 'green'
           },
         })
       );
-      sumBefore += currentRowHeight;
-    }
-  }
 
-  const sumRwoRenderHeight = sumRowsHeights(rowStopIndex, rowStartIndex);
-
-  // ============================== 左冻结cell ==============================
-  sumLeftFixedWidth = 0;
-  for (let j = 0; j < fixedLeftCount; j++) {
-    const columnIndex = j;
-    const currentColumnWidth = columnWidth(columnIndex);
-
-    for (let i = rowStartIndex; i <= rowStopIndex; i++) {
-      const currentRowHeight = itemHeight(i);
-
-      const marginTop =
-        i === rowStartIndex
-          ? j === 0
-            ? topFromWrapper - yieldAtTop
-            : -1 * sumRwoRenderHeight
-          : undefined;
-
-      items.push(
-        children({
-          key: `${i}:${columnIndex}`,
-          rowIndex: i,
-          columnIndex,
-          style: {
-            marginTop,
-            width: currentColumnWidth,
-            height: currentRowHeight,
-            position: 'sticky',
-            left: sumLeftFixedWidth,
-            zIndex: Level.leftFixedCell,
-            marginBottom:
-              j !== 0 && expandable[i]?.enable ? expandable[i].height : 0,
-            // background: 'blue',
-          },
-          data: itemData,
-        })
-      );
-
-      // 行展开
-      if (enableExpandable && expandable[i]?.enable && j === 0) {
-        const isCover = expandable[i].expandStrategy === EXPAND_STRATEGY_COVER;
-
-        if (isCover) {
-          // 左冻结列存在时cover的行展开由左冻结渲染
-          items.push(
-            expandRenderer({
-              key: `__expand:cover:${i}`,
-              style: {
-                position: 'sticky',
-                left: 0,
-                width,
-                background: 'rgba(255, 0, 0, .1)',
-                height: expandable[i].height,
-              },
-              expandAt: ExpandAt.COVER,
-              rowIndex: i,
-            })
-          );
-        } else {
-          // 非cover的行展开
-          items.push(
-            expandRenderer({
-              key: `__expand:left:${i}`,
-              style: {
-                position: 'sticky',
-                left: 0,
-                width: yieldAtLeft,
-                background: 'rgba(255, 0, 0, .1)',
-                height: expandable[i].height,
-              },
-              expandAt: ExpandAt.LEFT,
-              rowIndex: i,
-            })
-          );
-        }
-      }
-    }
-    sumLeftFixedWidth += currentColumnWidth;
-  }
-
-  // ============================== 右冻结cell ==============================
-  let sumRightFixedWidth = yieldAtRight;
-  for (let j = indexOfFirstRightFixedCol; j < columnCount; j++) {
-    const currentColumnWidth = columnWidth(j);
-    for (let i = rowStartIndex; i <= rowStopIndex; i += 1) {
-      const currentRowHeight = itemHeight(i);
-
-      const marginTop =
-        i === rowStartIndex
-          ? j === indexOfFirstRightFixedCol && !fixedLeftCount
-            ? topFromWrapper - yieldAtTop
-            : sumRwoRenderHeight * -1
-          : undefined;
-
-      items.push(
-        children({
-          key: `${i}:${j}`,
-          rowIndex: i,
-          columnIndex: j,
-          style: {
-            marginTop,
-            width: currentColumnWidth,
-            height: currentRowHeight,
-            position: 'sticky',
-            left: width - sumRightFixedWidth - adjustmentForRightFixed,
-            // transform: `translateX(-${sumRightFixedWidth}px)`,
-            zIndex: Level.rightFixedCell,
-            marginBottom:
-              j !== indexOfFirstRightFixedCol && expandable[i]?.enable
-                ? expandable[i].height
-                : 0,
-          },
-          data: itemData,
-        })
-      );
-
-      if (
-        enableExpandable &&
-        j === indexOfFirstRightFixedCol &&
-        expandable[i]?.enable
-      ) {
-        const isCover = expandable[i].expandStrategy === EXPAND_STRATEGY_COVER;
-
-        if (!isCover) {
-          // 非cover的行展开
-          items.push(
-            expandRenderer({
-              key: `__expand:right:${i}`,
-              style: {
-                position: 'sticky',
-                left: width - sumRightFixedWidth - adjustmentForRightFixed,
-                width: yieldAtRight,
-                background: 'rgba(0, 255, 0, .1)',
-                height: expandable[i].height,
-              },
-              expandAt: ExpandAt.RIGHT,
-              rowIndex: i,
-            })
-          );
-        } else if (!fixedLeftCount) {
-          // cover + 左冻结不存在时右冻结渲染cover的行展开
-          items.push(
-            expandRenderer({
-              key: `__expand:cover:${i}`,
-              style: {
-                position: 'sticky',
-                left: 0,
-                width,
-                background: 'rgba(255, 0, 0, .1)',
-                height: expandable[i].height,
-              },
-              expandAt: ExpandAt.COVER,
-              rowIndex: i,
-            })
-          );
-        } else {
-          // cover + 左冻结存在时右冻结渲染一个占位保证右冻结列的位置
-          items.push(
-            createElement('div', {
-              key: `__expand:shadow:${i}`,
-              style: {
-                position: 'sticky',
-                left: width - sumRightFixedWidth - adjustmentForRightFixed,
-                width: yieldAtRight,
-                height: expandable[i].height,
-                opacity: 0,
-                pointerEvents: 'none',
-              },
-            })
-          );
-        }
+      let sumBefore = topFromWrapper;
+      for (let i = rowStartIndex; i <= rowStopIndex; i++) {
+        const currentRowHeight = rowHeight(i);
+        items.push(
+          placeholderRenderer({
+            key: `__grid_placeholder:${i}__`,
+            rowIndex: i,
+            style: {
+              width: '100%',
+              height: currentRowHeight,
+              position: 'absolute',
+              top: sumBefore,
+              left: 0,
+              zIndex: Level.placeholderCell,
+              // background: 'green'
+            },
+          })
+        );
+        sumBefore += currentRowHeight;
       }
     }
 
-    sumRightFixedWidth -= currentColumnWidth;
+    const sumRwoRenderHeight = sumRowsHeights(rowStopIndex, rowStartIndex);
+
+    // ============================== 左冻结cell ==============================
+    sumLeftFixedWidth = 0;
+    for (let j = 0; j < fixedLeftCount; j++) {
+      const columnIndex = j;
+      const currentColumnWidth = columnWidth(columnIndex);
+
+      for (let i = rowStartIndex; i <= rowStopIndex; i++) {
+        const currentRowHeight = itemHeight(i);
+
+        const marginTop =
+          i === rowStartIndex
+            ? j === 0
+              ? topFromWrapper - yieldAtTop
+              : -1 * sumRwoRenderHeight
+            : undefined;
+
+        items.push(
+          children({
+            key: `${i}:${columnIndex}`,
+            rowIndex: i,
+            columnIndex,
+            style: {
+              marginTop,
+              width: currentColumnWidth,
+              height: currentRowHeight,
+              position: 'sticky',
+              left: sumLeftFixedWidth,
+              zIndex: Level.leftFixedCell,
+              marginBottom:
+                j !== 0 && expandable[i]?.enable ? expandable[i].height : 0,
+              // background: 'blue',
+            },
+            data: itemData,
+          })
+        );
+
+        // 行展开
+        if (enableExpandable && expandable[i]?.enable && j === 0) {
+          const isCover =
+            expandable[i].expandStrategy === EXPAND_STRATEGY_COVER;
+
+          if (isCover) {
+            // 左冻结列存在时cover的行展开由左冻结渲染
+            items.push(
+              expandRenderer({
+                key: `__expand:cover:${i}`,
+                style: {
+                  position: 'sticky',
+                  left: 0,
+                  width,
+                  // background: 'rgba(255, 0, 0, .1)',
+                  height: expandable[i].height,
+                },
+                expandAt: ExpandAt.COVER,
+                rowIndex: i,
+              })
+            );
+          } else {
+            // 非cover的行展开
+            items.push(
+              expandRenderer({
+                key: `__expand:left:${i}`,
+                style: {
+                  position: 'sticky',
+                  left: 0,
+                  width: yieldAtLeft,
+                  // background: 'rgba(255, 0, 0, .1)',
+                  height: expandable[i].height,
+                },
+                expandAt: ExpandAt.LEFT,
+                rowIndex: i,
+              })
+            );
+          }
+        }
+      }
+      sumLeftFixedWidth += currentColumnWidth;
+    }
+
+    // ============================== 右冻结cell ==============================
+    let sumRightFixedWidth = yieldAtRight;
+    for (let j = indexOfFirstRightFixedCol; j < columnCount; j++) {
+      const currentColumnWidth = columnWidth(j);
+      for (let i = rowStartIndex; i <= rowStopIndex; i += 1) {
+        const currentRowHeight = itemHeight(i);
+
+        const marginTop =
+          i === rowStartIndex
+            ? j === indexOfFirstRightFixedCol && !fixedLeftCount
+              ? topFromWrapper - yieldAtTop
+              : sumRwoRenderHeight * -1
+            : undefined;
+
+        items.push(
+          children({
+            key: `${i}:${j}`,
+            rowIndex: i,
+            columnIndex: j,
+            style: {
+              marginTop,
+              width: currentColumnWidth,
+              height: currentRowHeight,
+              position: 'sticky',
+              left: width - sumRightFixedWidth - adjustmentForRightFixed,
+              // transform: `translateX(-${sumRightFixedWidth}px)`,
+              zIndex: Level.rightFixedCell,
+              marginBottom:
+                j !== indexOfFirstRightFixedCol && expandable[i]?.enable
+                  ? expandable[i].height
+                  : 0,
+            },
+            data: itemData,
+          })
+        );
+
+        if (
+          enableExpandable &&
+          j === indexOfFirstRightFixedCol &&
+          expandable[i]?.enable
+        ) {
+          const isCover =
+            expandable[i].expandStrategy === EXPAND_STRATEGY_COVER;
+
+          if (!isCover) {
+            // 非cover的行展开
+            items.push(
+              expandRenderer({
+                key: `__expand:right:${i}`,
+                style: {
+                  position: 'sticky',
+                  left: width - sumRightFixedWidth - adjustmentForRightFixed,
+                  width: yieldAtRight,
+                  // background: 'rgba(0, 255, 0, .1)',
+                  height: expandable[i].height,
+                },
+                expandAt: ExpandAt.RIGHT,
+                rowIndex: i,
+              })
+            );
+          } else if (!fixedLeftCount) {
+            // cover + 左冻结不存在时右冻结渲染cover的行展开
+            items.push(
+              expandRenderer({
+                key: `__expand:cover:${i}`,
+                style: {
+                  position: 'sticky',
+                  left: 0,
+                  width,
+                  // background: 'rgba(255, 0, 0, .1)',
+                  height: expandable[i].height,
+                },
+                expandAt: ExpandAt.COVER,
+                rowIndex: i,
+              })
+            );
+          } else {
+            // cover + 左冻结存在时右冻结渲染一个占位保证右冻结列的位置
+            items.push(
+              createElement('div', {
+                key: `__expand:shadow:${i}`,
+                style: {
+                  position: 'sticky',
+                  left: width - sumRightFixedWidth - adjustmentForRightFixed,
+                  width: yieldAtRight,
+                  height: expandable[i].height,
+                  opacity: 0,
+                  pointerEvents: 'none',
+                },
+              })
+            );
+          }
+        }
+      }
+
+      sumRightFixedWidth -= currentColumnWidth;
+    }
   }
 
   return (
     <div
       className={className}
-      onScroll={_onScroll}
+      onScroll={internalOnScroll}
       ref={outerRef}
       style={{
         position: 'relative',
