@@ -48,12 +48,7 @@ module.exports = {
     'react/jsx-props-no-spreading': 0,
     'react/no-unstable-nested-components': 0,
     // ==================== plugin:import ====================
-    'import/no-extraneous-dependencies': [
-      'error',
-      {
-        devDependencies: ['**/*.config.ts'],
-      },
-    ],
     'import/prefer-default-export': 0,
+    'import/no-extraneous-dependencies': 0,
   },
 };
