@@ -1,4 +1,3 @@
-/* eslint-disable no-param-reassign */
 import { ItemSize, InstanceProps, ItemMetadata } from './types';
 
 export type GetMetadata = (

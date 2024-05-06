@@ -1,10 +1,8 @@
-/* eslint-disable react/destructuring-assignment */
-import React, { ForwardRefRenderFunction, Ref, forwardRef } from 'react';
 import { createUseStyles } from 'react-jss';
 import cx from 'classnames';
-import { Grid, GridProps } from './Grid';
 
-import AutoSizer from '../auto-sizer';
+import { Grid, GridProps } from './Grid';
+import { AutoSizer } from '../auto-sizer';
 
 export interface AutoSizeGridProps extends Omit<GridProps, 'width' | 'height'> {
   width?: GridProps['width'];
@@ -17,22 +15,15 @@ const useStyles = createUseStyles({
 });
 
 // wrap grid with auto-size
-const InnerAutoSizeGrid: ForwardRefRenderFunction<Grid, AutoSizeGridProps> = (
-  props,
-  ref
-) => {
+export const AutoSizeGrid = (props: AutoSizeGridProps) => {
   const classes = useStyles();
   const {
     width: widthInProps,
     height: heightInProps,
+    ref,
     innerWrapperClassName,
     ...restProps
   } = props;
-
-  const mergedInnerWrapperClassName = cx([
-    classes.wrapper,
-    innerWrapperClassName,
-  ]);
 
   return (
     <AutoSizer width={widthInProps} height={heightInProps}>
@@ -43,16 +34,10 @@ const InnerAutoSizeGrid: ForwardRefRenderFunction<Grid, AutoSizeGridProps> = (
             width={width}
             height={height}
             ref={ref}
-            innerWrapperClassName={mergedInnerWrapperClassName}
+            innerWrapperClassName={cx(classes.wrapper, innerWrapperClassName)}
           />
         );
       }}
     </AutoSizer>
   );
 };
-
-export const AutoSizeGrid = forwardRef(InnerAutoSizeGrid) as (
-  props: AutoSizeGridProps & {
-    ref?: Ref<Grid>;
-  }
-) => React.ReactElement;

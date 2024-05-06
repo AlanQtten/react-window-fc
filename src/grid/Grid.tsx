@@ -8,13 +8,11 @@ import React, {
   useState,
   createElement,
   CSSProperties,
-  forwardRef,
   memo,
   SyntheticEvent,
   useImperativeHandle,
-  Ref,
-  ForwardRefRenderFunction,
   ReactElement,
+  Ref,
 } from 'react';
 
 import { getRTLOffsetType, getScrollbarSize } from './domHelpers';
@@ -29,11 +27,10 @@ export type ScrollToAlign = 'auto' | 'smart' | 'center' | 'start' | 'end';
 
 export type RenderCellProps = {
   columnIndex: number;
-  data: any;
-  isScrolling?: boolean;
   rowIndex: number;
   style: CSSProperties;
   key: React.Key;
+  rowData: any;
 };
 
 export type RenderCell = (p: RenderCellProps) => React.ReactNode;
@@ -50,40 +47,7 @@ type OnScrollCallback = (p: {
 
 type ScrollEvent = SyntheticEvent<HTMLDivElement>;
 
-export type GridProps = {
-  // required
-  children: RenderCell;
-  columnCount: number;
-  columnWidth: ItemSize;
-  rowCount: number;
-  rowHeight: ItemSize;
-  height: number;
-  width: number;
-  estimatedTotalHeight: number;
-  estimatedTotalWidth: number;
-  // partial
-  itemData?: any;
-  useIsScrolling?: boolean;
-  direction?: Direction;
-  className?: string;
-  innerWrapperClassName?: string;
-  initialScrollLeft?: number;
-  initialScrollTop?: number;
-  onScroll?: OnScrollCallback;
-  overscanColumnCount?: number;
-  overscanRowCount?: number;
-  style?: CSSProperties;
-  fixedTopCount?: number;
-  fixedLeftCount?: number;
-  fixedRightCount?: number;
-  // fixedBottomCount?: number,
-  placeholderRenderer?: PlaceholderRenderer;
-  expandable?: Expandable;
-  expandRenderer?: ExpandRenderer;
-  itemHeight?: ItemSize;
-};
-
-export type Grid = {
+export type GridRef = {
   scrollTo: (p: { scrollLeft?: number; scrollTop?: number }) => void;
   scrollToItem: (p: {
     columnIndex?: number;
@@ -102,8 +66,43 @@ export type Grid = {
   ) => void;
 };
 
+export type GridProps = {
+  // required
+  children: RenderCell;
+  columnCount: number;
+  columnWidth: ItemSize;
+  rowCount: number;
+  rowHeight: ItemSize;
+  height: number;
+  width: number;
+  estimatedTotalHeight: number;
+  estimatedTotalWidth: number;
+  // partial
+  direction?: Direction;
+  className?: string;
+  innerWrapperClassName?: string;
+  initialScrollLeft?: number;
+  initialScrollTop?: number;
+  onScroll?: OnScrollCallback;
+  overscanColumnCount?: number;
+  overscanRowCount?: number;
+  style?: CSSProperties;
+  fixedTopCount?: number;
+  fixedLeftCount?: number;
+  fixedRightCount?: number;
+  // fixedBottomCount?: number,
+  placeholderRenderer?: PlaceholderRenderer;
+  expandable?: Expandable;
+  expandRenderer?: ExpandRenderer;
+  itemHeight?: ItemSize;
+  extraNodeRenderer?: () => React.ReactNode;
+  onRow?: (rowIndex: number) => any;
+  // onCol?: (colIndex: number) => any;
+  ref?: Ref<GridRef>;
+};
+
 // 管理grid内各个区域的层级
-enum Level {
+const enum Level {
   leftFixedHead = 5, // 左冻结区域 头
   leftFixedCell = 2, // 左冻结区域 列
   rightFixedHead = 4, // 右冻结 头
@@ -302,13 +301,16 @@ function initInstanceProps() {
   };
 }
 
-function getAnObj(): any {
-  return {};
-}
+type StyleCache = Record<string, CSSProperties>;
+type RowCalculationCache = Record<number, any>;
+
+const initStyleCache = (): StyleCache => ({});
+const initRowCalculationCache = (): RowCalculationCache => ({});
 
 const defaultExpandable: Expandable = {};
+const defaultOnRow: GridProps['onRow'] = () => null;
 
-const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
+export const Grid = memo((props: GridProps) => {
   const {
     initialScrollLeft,
     initialScrollTop,
@@ -325,12 +327,9 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
     rowCount,
     overscanRowCount,
     children,
-    itemData,
-    useIsScrolling = false,
     rowHeight,
     columnWidth,
     onScroll,
-
     fixedTopCount = 0,
     fixedLeftCount = 0,
     fixedRightCount = 0,
@@ -339,9 +338,12 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
     expandable: customizeExpandable,
     expandRenderer,
     itemHeight: customizeItemHeight,
+    extraNodeRenderer,
+    onRow = defaultOnRow,
+    ref,
   } = props;
 
-  const [isScrolling, setIsScrolling] = useState(false);
+  const [isScrolling] = useState(false);
   const [horizontalScrollDirection, setHorizontalScrollDirection] =
     useState<ScrollDirection>('forward');
   const [verticalScrollDirection, setVerticalScrollDirection] =
@@ -352,14 +354,15 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
   const [scrollTop, setScrollTop] = useState(
     typeof initialScrollTop === 'number' ? initialScrollTop : 0
   );
-  const [scrollUpdateWasRequested, setScrollUpdateWasRequested] =
-    useState(false);
 
   const forceUpdate = useForceUpdate();
 
   const outerRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef(null);
   const instanceProps = useInitialRef<InstanceProps>(initInstanceProps);
+  const rowCalculationCache = useInitialRef<RowCalculationCache>(
+    initRowCalculationCache
+  );
 
   // 第一个右冻结列的下标
   const indexOfFirstRightFixedCol = columnCount - fixedRightCount;
@@ -560,7 +563,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
     [rowHeight]
   );
 
-  const scrollTo: Grid['scrollTo'] = useCallback(
+  const scrollTo: GridRef['scrollTo'] = useCallback(
     ({ scrollLeft: toScrollLeft, scrollTop: toScrollTop }) => {
       if (toScrollLeft !== undefined) {
         toScrollLeft = Math.max(0, toScrollLeft);
@@ -569,7 +572,9 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
         toScrollTop = Math.max(0, toScrollTop);
       }
 
-      const scrollOptions: ScrollToOptions = { behavior: 'instant' };
+      const scrollOptions: ScrollToOptions = {
+        behavior: 'instant' as ScrollBehavior,
+      };
       if (toScrollLeft && estimatedTotalWidth > width) {
         scrollOptions.left = toScrollLeft;
       }
@@ -583,7 +588,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
     [estimatedTotalWidth, width, estimatedTotalHeight, height]
   );
 
-  const itemStyleCache = useInitialRef<Record<string, CSSProperties>>(getAnObj);
+  const itemStyleCache = useInitialRef<StyleCache>(initStyleCache);
 
   const getItemStyle = useCallback(
     (rowIndex: number, columnIndex: number): CSSProperties => {
@@ -637,7 +642,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
     ]
   );
 
-  const resetAfterIndices: Grid['resetAfterIndices'] = useCallback(
+  const resetAfterIndices: GridRef['resetAfterIndices'] = useCallback(
     ({ columnIndex, rowIndex, shouldForceUpdate = true }) => {
       if (typeof columnIndex === 'number') {
         instanceProps.current.lastMeasuredColumnIndex = Math.min(
@@ -721,7 +726,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
         resetAfterColumnIndex(columnIndex, shouldForceUpdate = true) {
           resetAfterIndices({ columnIndex, shouldForceUpdate });
         },
-      }) as Grid,
+      }) as GridRef,
     [
       scrollTo,
       resetAfterIndices,
@@ -767,8 +772,6 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
         scrollWidth,
       } = event.currentTarget;
 
-      // setIsScrolling(true) // TODO: is scrolling debounce
-      // setScrollUpdateWasRequested(false) // TODO: scrollUpdateWasRequested
       setScrollLeft((prevScrollLeft) => {
         if (prevScrollLeft === latestScrollLeft) {
           // 避免造成冗余的render
@@ -822,17 +825,14 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
     [direction]
   );
 
-  // useEffect(() => {
-  //   if (outerRef.current !== null) {
-  //     // TODO: set initialScrollLeft、initialScrollTop for outerRef
-  //   }
-  // }, []);
-
   // ============================== render ==============================
   // ============================== 普通单元格 ==============================
   const items = [];
+
   if (columnCount > 0 && rowCount) {
     for (let rowIndex = rowStartIndex; rowIndex <= rowStopIndex; rowIndex++) {
+      rowCalculationCache.current[rowIndex] = onRow(rowIndex);
+
       for (
         let columnIndex = columnStartIndex;
         columnIndex <= columnStopIndex;
@@ -841,11 +841,11 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
         items.push(
           children({
             columnIndex,
-            data: itemData,
-            isScrolling: useIsScrolling ? isScrolling : undefined,
+            // isScrolling: useIsScrolling ? isScrolling : undefined,
             key: `${rowIndex}:${columnIndex}`,
             rowIndex,
             style: getItemStyle(rowIndex, columnIndex),
+            rowData: rowCalculationCache.current[rowIndex],
           })
         );
       }
@@ -891,12 +891,9 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
     }
   }
 
-  if (items.length) {
-    const topFromWrapper = (items[0] as ReactElement<RenderCellProps>).props
-      .style.top as number;
-
+  let sumLeftFixedWidth = 0;
+  if (fixedTopCount) {
     // ============================== 左上冻结cell ==============================
-    let sumLeftFixedWidth = 0;
     for (let i = 0; i < fixedLeftCount; i++) {
       const currentColumnWidth = columnWidth(i);
       items.push(
@@ -914,7 +911,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
             zIndex: Level.leftFixedHead,
             // background: 'red',
           },
-          data: itemData,
+          rowData: rowCalculationCache.current[0],
         })
       );
       sumLeftFixedWidth += currentColumnWidth;
@@ -941,7 +938,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
               zIndex: Level.rightFixedHead,
               // background: 'orange',
             },
-            data: itemData,
+            rowData: rowCalculationCache.current[0],
           })
         );
         sumRightFixedWidth -= currentColumnWidth;
@@ -952,10 +949,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
     for (let i = columnStartIndex; i <= columnStopIndex; i += 1) {
       const marginLeft: number | undefined =
         i === columnStartIndex
-          ? ((items[0] as ReactElement<RenderCellProps>).props.style
-              .left as number) -
-            yieldAtLeft -
-            yieldAtRight
+          ? (getItemStyle(0, i).left as number) - yieldAtLeft - yieldAtRight
           : undefined;
 
       items.push(
@@ -973,10 +967,15 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
             zIndex: Level.topFixedRow,
             // background: 'green'
           },
-          data: itemData,
+          rowData: rowCalculationCache.current[0],
         })
       );
     }
+  }
+
+  if (items.length) {
+    const topFromWrapper = (items[0] as ReactElement<RenderCellProps>).props
+      .style.top as number;
 
     // ============================== 行展开(===EXPAND_STRATEGY_COVER && 左右冻结都不存在) ==============================
     if (enableExpandable && !fixedLeftCount && !fixedRightCount) {
@@ -1102,7 +1101,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
                 j !== 0 && expandable[i]?.enable ? expandable[i].height : 0,
               // background: 'blue',
             },
-            data: itemData,
+            rowData: rowCalculationCache.current[i],
           })
         );
 
@@ -1181,7 +1180,7 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
                   ? expandable[i].height
                   : 0,
             },
-            data: itemData,
+            rowData: rowCalculationCache.current[i],
           })
         );
 
@@ -1276,13 +1275,8 @@ const InnerGrid: ForwardRefRenderFunction<Grid, GridProps> = (props, ref) => {
       >
         {items}
       </div>
+
+      {extraNodeRenderer && extraNodeRenderer()}
     </div>
   );
-};
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const Grid = memo(forwardRef(InnerGrid)) as (
-  props: GridProps & {
-    ref?: Ref<Grid>;
-  }
-) => React.ReactElement;
+});

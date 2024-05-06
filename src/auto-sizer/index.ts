@@ -1,3 +1,1 @@
-import AutoSizer from './AutoSizer';
-
-export default AutoSizer;
+export { default as AutoSizer } from './AutoSizer';

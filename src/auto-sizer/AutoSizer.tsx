@@ -9,7 +9,7 @@ type Size = {
   height?: number;
 };
 
-type AutoSizerProps = Props & {
+type AutoSizerProps = Omit<Props, 'children'> & {
   width?: number;
   height?: number;
   className?: string;
@@ -17,7 +17,7 @@ type AutoSizerProps = Props & {
 };
 
 // in case NaN
-const formatter = (num: number) => num || 0;
+const formatter = (num: number | undefined) => num || 0;
 
 function AutoSizer(props: AutoSizerProps) {
   const { className, width, height, children, onResize } = props;
@@ -45,7 +45,7 @@ function AutoSizer(props: AutoSizerProps) {
         disableHeight={false}
         onResize={onResize}
       >
-        {(size) =>
+        {(size: Size) =>
           children({
             width: formatter(disableWidth ? width : size.width),
             height: formatter(disableHeight ? height : size.height),
@@ -63,7 +63,7 @@ function AutoSizer(props: AutoSizerProps) {
         disableHeight={false}
         onResize={onResize as HeightOnlyProps['onResize']}
       >
-        {(size) =>
+        {(size: Size) =>
           children({
             width: formatter(width),
             height: formatter(disableHeight ? height : size.height),
@@ -81,7 +81,7 @@ function AutoSizer(props: AutoSizerProps) {
       disableHeight
       onResize={onResize as WidthOnlyProps['onResize']}
     >
-      {(size) =>
+      {(size: Size) =>
         children({
           width: formatter(disableWidth ? width : size.width),
           height: formatter(height!),

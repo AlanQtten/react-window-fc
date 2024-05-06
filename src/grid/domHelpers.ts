@@ -1,4 +1,4 @@
-let size: number = -1;
+let size = -1;
 
 export function getScrollbarSize(recalculate = false): number {
   if (size === -1 || recalculate) {
@@ -24,7 +24,7 @@ export type RTLOffsetType =
 
 let cachedRTLResult: RTLOffsetType | null = null;
 
-export function getRTLOffsetType(recalculate: boolean = false): RTLOffsetType {
+export function getRTLOffsetType(recalculate = false): RTLOffsetType {
   if (cachedRTLResult === null || recalculate) {
     const outerDiv = document.createElement('div');
     const outerStyle = outerDiv.style;

@@ -1,8 +1,7 @@
 /* eslint-disable no-nested-ternary */
 import React, {
   CSSProperties,
-  ForwardRefRenderFunction,
-  forwardRef,
+  Ref,
   memo,
   useEffect,
   useImperativeHandle,
@@ -19,8 +18,9 @@ import {
   ExpandAt,
   ExpandRenderer,
   Expandable,
-  Grid,
+  GridRef,
   PlaceholderRenderer,
+  RenderCellProps,
   areEqual,
 } from '../grid';
 
@@ -43,19 +43,22 @@ type CellRenderProps = {
   rowSelection: RowSelection;
   rowIndex: number;
   columnIndex: number;
+  rowCalculationCache: any;
+  // colCalculationCache: any;
 };
 
 type RowSelection = {
+  hidden?: boolean;
   selectedRowKeys: React.Key[];
   selectedRows: any[];
-  onChange: ({
+  onChange?: ({
     selectedRowKeys,
     selectedRows,
   }: {
     selectedRowKeys: RowSelection['selectedRowKeys'];
     selectedRows: RowSelection['selectedRows'];
   }) => void;
-  getCheckboxProps: (rowData: any) => Pick<CheckboxProps, 'disabled'>;
+  getCheckboxProps?: (rowData: any) => Pick<CheckboxProps, 'disabled'>;
 };
 
 export type Column = {
@@ -77,8 +80,17 @@ const isLeft = (frozen: Column['frozen']) =>
   frozen === true || frozen === 'left';
 const isRight = (frozen: Column['frozen']) => frozen === 'right';
 
+type TableFunc = {
+  // someOtherFunc: any
+};
+
+export interface TableRef extends GridRef, TableFunc {}
+
 export interface TableProps
-  extends Pick<AutoSizeGridProps, 'overscanColumnCount' | 'overscanRowCount'> {
+  extends Pick<
+    AutoSizeGridProps,
+    'overscanColumnCount' | 'overscanRowCount' | 'onRow'
+  > {
   rowHeight: number;
   rowKey: string;
   // partial
@@ -92,68 +104,79 @@ export interface TableProps
     className?: string,
     columns?: Column[] | Column
   ) => React.ReactNode;
+  emptyRenderer?: (p: { style: CSSProperties }) => React.ReactNode;
+  stripe?: boolean;
+  ref?: Ref<TableRef>;
 }
 
-const Cell = memo<{
-  columnIndex: number;
-  rowIndex: number;
-  style: CSSProperties;
-  data: any;
-}>(({ columnIndex, rowIndex, style, data }) => {
-  const column = data.columns[columnIndex];
-  const isHead = rowIndex === 0;
-  const isOdd = rowIndex % 2 === 0;
+const Cell = memo<RenderCellProps & { data: any }>(
+  ({ columnIndex, rowIndex, style, data, rowData }) => {
+    const column = data.columns[columnIndex];
+    const isHead = rowIndex === 0;
+    const isOdd = rowIndex % 2 === 0;
 
-  return (
-    <div
-      className={cx([
-        data.classes.cell,
-        isHead
-          ? [data.classes.headCell, column.headerClassName]
-          : [column.className, isOdd && data.classes.oddRow],
-        column[internalClassNameSymbol],
-      ])}
-      style={style}
-      // key={`${rowIndex}-${columnIndex}-cell`}
-    >
-      {isHead
-        ? column.headerRenderer
-          ? column.headerRenderer({
+    return (
+      <div
+        className={cx(
+          data.classes.cell,
+          // lighter than `isHead ? [...] : [...]`
+          isHead
+            ? cx(data.classes.headCell, column.headerClassName)
+            : cx(
+                column.className,
+                isOdd && data.classes.oddRow,
+                rowData?.selected && data.classes.selectedRow
+              ),
+          column[internalClassNameSymbol]
+        )}
+        style={style}
+        // key={`${rowIndex}-${columnIndex}-cell`}
+      >
+        {isHead
+          ? column.headerRenderer
+            ? column.headerRenderer({
+                column,
+                rowSelection: data.rowSelection,
+                tableData: data.tableData,
+              })
+            : column.title
+          : column.cellRenderer({
               column,
+              rowData: data.tableData[rowIndex - 1],
               rowSelection: data.rowSelection,
-              tableData: data.tableData,
-            })
-          : column.title
-        : column.cellRenderer({
-            column,
-            rowData: data.tableData[rowIndex - 1],
-            rowSelection: data.rowSelection,
-            rowIndex,
-            columnIndex,
-          })}
-    </div>
-  );
-}, areEqual);
+              rowIndex,
+              columnIndex,
+              rowCalculationCache: rowData,
+              // colCalculationCache: colData,
+            })}
+      </div>
+    );
+  },
+  areEqual
+);
 
-const useStyles = createUseStyles({
+const verticalDivider = '#DBE1EC'; // 竖向分割线
+const horizontalDivider = '#B4BDCF'; // 横向分割线
+
+const useStyles = createUseStyles<string, { stripe?: boolean }>({
   wrapper: {
-    border: '1px solid #eee',
+    border: `1px solid ${verticalDivider}`,
   },
   cell: {
-    borderRight: '1px solid #eee',
-    borderBottom: '1px solid #969daf',
+    borderRight: `1px solid ${verticalDivider}`,
+    borderBottom: `1px solid ${horizontalDivider}`,
     boxSizing: 'border-box',
     verticalAlign: 'middle',
     background: '#fff',
   },
   placeholderCell: {
-    borderBottom: '1px solid #969daf',
+    borderBottom: `1px solid ${horizontalDivider}`,
     boxSizing: 'border-box',
     verticalAlign: 'middle',
     background: '#fff',
   },
   headCell: {
-    background: '#f8f8f8',
+    background: '#EBEEF5',
     alignItems: 'center',
     justifyContent: 'center',
     fontSize: 13,
@@ -177,7 +200,7 @@ const useStyles = createUseStyles({
   },
   cellInRightFixedCol: {
     borderRight: 'none',
-    borderLeft: '1px solid #eee',
+    borderLeft: `1px solid ${verticalDivider}`,
   },
   cellInFirstRightFixedCol: {
     borderLeft: 'none',
@@ -199,24 +222,20 @@ const useStyles = createUseStyles({
     justifyContent: 'center',
   },
   oddRow: {
-    background: '#f3f6f9',
+    background: ({ stripe }) => (stripe ? '#F8F9FF' : undefined),
+  },
+  selectedRow: {
+    background: '#e6f4ff',
   },
 });
-
-type TableFunc = {
-  // someOtherFunc: any
-};
-
-export interface TableRef extends Grid, TableFunc {}
 
 const defaultExpandRenderer: TableProps['expandRenderer'] = (p) => {
   return <div key={p.key} style={p.style} />;
 };
 
-const InnerTable: ForwardRefRenderFunction<TableRef, TableProps> = (
-  props,
-  ref
-) => {
+const defaultOnRow: TableProps['onRow'] = () => null;
+
+export const Table = (props: TableProps) => {
   const {
     columns: customizeColumns,
     data,
@@ -228,15 +247,19 @@ const InnerTable: ForwardRefRenderFunction<TableRef, TableProps> = (
     rowSelection,
     expandable,
     expandRenderer: customizeExpandRenderer = defaultExpandRenderer,
+    emptyRenderer,
+    onRow = defaultOnRow,
+    stripe,
+    ref,
   } = props;
 
-  const classes = useStyles();
+  const classes = useStyles({ stripe });
 
-  const grid = useRef<Grid>(null);
+  const grid = useRef<GridRef>(null);
 
   const total = data?.length ?? 0;
 
-  const showSelection = !!rowSelection;
+  const showSelection = rowSelection && !rowSelection.hidden;
 
   const selectCol = useMemo<Column | null>(() => {
     if (!showSelection) {
@@ -258,12 +281,12 @@ const InnerTable: ForwardRefRenderFunction<TableRef, TableProps> = (
             }
             onChange={(e) => {
               if (e.target.checked) {
-                latestRowSelection.onChange({
+                latestRowSelection.onChange?.({
                   selectedRowKeys: tableData.map((row) => row[rowKey]),
                   selectedRows: tableData,
                 });
               } else {
-                latestRowSelection.onChange({
+                latestRowSelection.onChange?.({
                   selectedRowKeys: [],
                   selectedRows: [],
                 });
@@ -271,7 +294,7 @@ const InnerTable: ForwardRefRenderFunction<TableRef, TableProps> = (
             }}
             disabled={
               tableData.length === 0 ||
-              latestRowSelection.getCheckboxProps(null).disabled
+              latestRowSelection.getCheckboxProps?.(null).disabled
             }
           />
         );
@@ -284,7 +307,7 @@ const InnerTable: ForwardRefRenderFunction<TableRef, TableProps> = (
             )}
             onChange={(e) => {
               if (e.target.checked) {
-                latestRowSelection.onChange({
+                latestRowSelection.onChange?.({
                   selectedRowKeys: [
                     ...latestRowSelection.selectedRowKeys,
                     rowData[rowKey],
@@ -292,7 +315,7 @@ const InnerTable: ForwardRefRenderFunction<TableRef, TableProps> = (
                   selectedRows: [...latestRowSelection.selectedRows, rowData],
                 });
               } else {
-                latestRowSelection.onChange({
+                latestRowSelection.onChange?.({
                   selectedRowKeys: latestRowSelection.selectedRowKeys.filter(
                     (k) => k !== rowData[rowKey]
                   ),
@@ -302,7 +325,7 @@ const InnerTable: ForwardRefRenderFunction<TableRef, TableProps> = (
                 });
               }
             }}
-            disabled={latestRowSelection.getCheckboxProps(rowData).disabled}
+            disabled={latestRowSelection.getCheckboxProps?.(rowData).disabled}
           />
         );
       },
@@ -436,13 +459,10 @@ const InnerTable: ForwardRefRenderFunction<TableRef, TableProps> = (
 
     return (
       <div
-        className={cx([
-          classes.placeholderCell,
-          {
-            [classes.headCell]: isHead,
-            [classes.oddRow]: isOdd,
-          },
-        ])}
+        className={cx(classes.placeholderCell, {
+          [classes.headCell]: isHead,
+          [classes.oddRow]: isOdd && !isHead,
+        })}
         style={style}
         key={key}
       />
@@ -520,11 +540,16 @@ const InnerTable: ForwardRefRenderFunction<TableRef, TableProps> = (
 
   // console.log(customizeColumns);
 
+  const needRendererEmptyNode = !total && emptyRenderer;
+
   return (
     <AutoSizeGrid
       className={classes.wrapper}
       columnCount={columns.length}
-      rowCount={(data?.length ?? 0) + 1}
+      rowCount={total + 1}
+      fixedLeftCount={fixedLeftCount}
+      fixedRightCount={fixedRightCount}
+      fixedTopCount={1}
       rowHeight={rowHeightGetter}
       itemHeight={itemHeightGetter}
       placeholderRenderer={placeholderRenderer}
@@ -532,21 +557,34 @@ const InnerTable: ForwardRefRenderFunction<TableRef, TableProps> = (
       expandRenderer={expandRenderer}
       columnWidth={columnWidthGetter}
       ref={grid}
-      // itemData={{
-      //   columns,
-      //   classes,
-      //   tableData: data,
-      //   rowSelection,
-      // }}
       overscanColumnCount={overscanColumnCount}
       overscanRowCount={overscanRowCount}
       estimatedTotalWidth={estimatedTotalWidth}
       estimatedTotalHeight={estimatedTotalHeight}
-      fixedLeftCount={fixedLeftCount}
-      fixedRightCount={fixedRightCount}
-      fixedTopCount={1}
+      extraNodeRenderer={
+        needRendererEmptyNode
+          ? () =>
+              emptyRenderer({
+                style: {
+                  height: `calc(100% - ${headHeight}px)`,
+                  top: headHeight,
+                  position: 'sticky',
+                  left: 0,
+                  width: '100%',
+                },
+              })
+          : undefined
+      }
+      onRow={(index) => {
+        return {
+          selected: rowSelection?.selectedRowKeys.includes(
+            data?.[index - 1][rowKey]
+          ),
+          ...onRow(index),
+        };
+      }}
     >
-      {({ style, key, rowIndex, columnIndex }) => {
+      {({ style, key, rowIndex, columnIndex, rowData }) => {
         return (
           <Cell
             key={key}
@@ -554,15 +592,10 @@ const InnerTable: ForwardRefRenderFunction<TableRef, TableProps> = (
             rowIndex={rowIndex}
             columnIndex={columnIndex}
             data={itemData}
+            rowData={rowData}
           />
         );
       }}
     </AutoSizeGrid>
   );
 };
-
-export const Table = forwardRef(InnerTable) as unknown as (
-  props: TableProps & {
-    ref?: TableRef;
-  }
-) => React.ReactElement;

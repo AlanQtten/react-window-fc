@@ -1,5 +1,22 @@
-import shallowDiffers from './shallowDiffers';
-import { PropsAreEqual } from './types';
+import { memo } from 'react';
+
+type PropsAreEqual = NonNullable<Parameters<typeof memo>[1]>;
+
+const shallowDiffers: PropsAreEqual = (prev, next) => {
+  for (const attribute in prev) {
+    if (!(attribute in next)) {
+      return true;
+    }
+  }
+
+  for (const attribute in prev) {
+    if (prev[attribute] !== next[attribute]) {
+      return true;
+    }
+  }
+
+  return false;
+};
 
 const areEqual: PropsAreEqual = (prevProps, nextProps) => {
   const { style: prevStyle, ...prevRest } = prevProps;

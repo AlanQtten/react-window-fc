@@ -1,7 +1,3 @@
-import { memo } from 'react';
-
-export type PropsAreEqual = NonNullable<Parameters<typeof memo>[1]>;
-
 export type AnimationFrameID = ReturnType<typeof requestAnimationFrame>;
 
 export type ItemType = 'column' | 'row';
