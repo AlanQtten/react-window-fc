@@ -9,8 +9,10 @@ let react-window support sticky rows and cols
   - remove deprecated api
   - replace createElement with render props and remove `onItemsRendered`
   - remove FixedSizeGrid、FixedSizeList and VariableSizeList
-  - `fixedLeftCount`、`fixedRightCount` and `expandable`
-- add `table` component
+  - support fixed top row(one row) and fixed left/right col
+  - support expandable
+  - support `onRow` api
+- add `Table` component
 
 # Grid
 
@@ -24,3 +26,4 @@ let react-window support sticky rows and cols
 - [ ] unit test and perf test
 - [ ] support `fixedTopCount`
 - [ ] support `fixedBottomCount`
+- [ ] support `onCol`
