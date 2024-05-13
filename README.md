@@ -1,6 +1,6 @@
 # Why
 
-let react-window support sticky rows
+let react-window support sticky rows and cols
 
 # Difference with react-window
 
@@ -9,11 +9,18 @@ let react-window support sticky rows
   - remove deprecated api
   - replace createElement with render props and remove `onItemsRendered`
   - remove FixedSizeGrid、FixedSizeList and VariableSizeList
-  - add `fixedTopCount`、`fixedLeftCount`、`fixedRightCount` and `expandable`
+  - `fixedLeftCount`、`fixedRightCount` and `expandable`
 - add `table` component
 
+# Grid
+
+[Grid doc](src/grid/README.md)
+
+# Table
+
+[Table doc](src/table/README.md)
+
 # TODO
-- [ ] remove `itemHeight` from props
-- [ ] support `isScrolling` and `scrollUpdateWasRequested`
-- [ ] support `initialScrollLeft` and `initialScrollTop`
 - [ ] unit test and perf test
+- [ ] support `fixedTopCount`
+- [ ] support `fixedBottomCount`
