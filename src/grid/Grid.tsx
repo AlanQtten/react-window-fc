@@ -1,5 +1,3 @@
-/* eslint-disable no-nested-ternary */
-/* eslint-disable no-multi-assign */
 import React, {
   useCallback,
   useEffect,
